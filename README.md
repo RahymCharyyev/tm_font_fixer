@@ -74,7 +74,7 @@ PyInstaller не собирает приложение под другую ОС,
 ### Выпуск версии
 
 1. Поменяйте `__version__` в `tmfontfixer/__init__.py`.
-2. `git tag v1.0.1 && git push --tags`
+2. На GitHub: **Releases → Draft a new release**, тег `1.0.1` (или `v1.0.1`) → **Publish release**.
 
 Workflow соберёт `.dmg` и `.exe` и опубликует их в Releases.
 
