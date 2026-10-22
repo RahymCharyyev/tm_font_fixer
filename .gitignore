@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+build/
+dist/
+dmg/
+*.dmg
+.DS_Store
+.venv/

@@ -1,0 +1,90 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest          # Apple Silicon (M1/M2/M3/M4)
+            name: TM-Font-Fixer-macOS-AppleSilicon
+          - os: macos-15-intel        # Mac на Intel
+            name: TM-Font-Fixer-macOS-Intel
+          - os: windows-latest
+            name: TM-Font-Fixer-Windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Self-test (source)
+        run: python main.py --selftest
+
+      - name: Build
+        run: pyinstaller --noconfirm --clean tmfontfixer.spec
+
+      # ---------- macOS ----------
+      - name: Self-test (app) + DMG
+        if: runner.os == 'macOS'
+        run: |
+          "dist/TM Font Fixer.app/Contents/MacOS/TM Font Fixer" --selftest
+          mkdir -p dmg
+          cp -R "dist/TM Font Fixer.app" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "TM Font Fixer" -srcfolder dmg -ov -format UDZO "${{ matrix.name }}.dmg"
+
+      - name: Upload (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}.dmg
+
+      # ---------- Windows ----------
+      - name: Self-test (exe)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\TM-Font-Fixer.exe" -ArgumentList "--selftest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "selftest failed: $($p.ExitCode)" }
+          Copy-Item "dist\TM-Font-Fixer.exe" "${{ matrix.name }}.exe"
+
+      - name: Upload (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}.exe
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
